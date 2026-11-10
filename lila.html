@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>lilo's</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💗</text></svg>">
+<style>
+:root{--bg1:#fff0f5;--bg2:#ffe0ec;--card:#ffffffcc;--tx:#4a1030;--mut:#a0607c;--pk:#ff4d88;--pk2:#ff8fb3;--bd:#ffc2d9}
+@media (prefers-color-scheme:dark){:root{--bg1:#1d0a14;--bg2:#2b0f1e;--card:#3a1829cc;--tx:#ffe6ef;--mut:#d79ab5;--bd:#5c2a42}}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:linear-gradient(160deg,var(--bg1),var(--bg2));color:var(--tx);font-family:"Segoe UI",system-ui,sans-serif;display:flex;justify-content:center;padding:20px 14px}
+.wrap{width:100%;max-width:560px}
+h1{text-align:center;font-size:2.4rem;margin:8px 0 2px;color:var(--pk)}
+.sub{text-align:center;color:var(--mut);margin:0 0 18px}
+.card{background:var(--card);backdrop-filter:blur(8px);border:1px solid var(--bd);border-radius:22px;padding:18px;margin-bottom:16px;box-shadow:0 8px 28px #ff4d8826}
+input,textarea{width:100%;font:inherit;color:var(--tx);background:transparent;border:1.5px solid var(--bd);border-radius:14px;padding:12px;margin-bottom:10px;outline:none}
+input:focus,textarea:focus{border-color:var(--pk)}
+textarea{min-height:110px;resize:vertical}
+button{font:inherit;cursor:pointer;border:0;border-radius:14px;padding:11px 18px;background:linear-gradient(135deg,var(--pk),var(--pk2));color:#fff;font-weight:600}
+button.ghost{background:transparent;color:var(--pk);border:1.5px solid var(--pk)}
+button:disabled{opacity:.6}
+.row{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.hearts{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.h{text-align:center}.h svg{width:100%;max-width:150px}
+.pct{font-size:1.7rem;font-weight:800;color:var(--pk)}
+.lbl{font-size:.85rem;color:var(--mut)}
+.err{color:#d6336c;min-height:1.2em;font-size:.9rem}
+.msg{border-top:1px dashed var(--bd);padding:10px 0}.msg:first-child{border:0}
+.msg small{color:var(--mut)}
+.result{text-align:center;animation:pop .5s}
+@keyframes pop{from{transform:scale(.6);opacity:0}to{transform:scale(1);opacity:1}}
+.hid{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>💗 lilo's</h1>
+  <p class="sub" id="sub">Just for the two of us</p>
+
+  <div id="login" class="card">
+    <input id="u" placeholder="username" autocomplete="username">
+    <input id="p" type="password" placeholder="password" autocomplete="current-password">
+    <div class="err" id="lerr"></div>
+    <button id="go" style="width:100%">Log in</button>
+  </div>
+
+  <div id="app" class="hid">
+    <div class="row" style="margin-bottom:12px"><b id="hi"></b><button class="ghost" id="out">Log out</button></div>
+    <div class="card">
+      <b>Write what's in your heart ✍️</b>
+      <p class="lbl" style="margin:4px 0 10px">Arabic, English or Franco, sweet or harsh, say it your way</p>
+      <textarea id="t" maxlength="2000" placeholder="Type here..."></textarea>
+      <div class="err" id="serr"></div>
+      <button id="send">Send 💌</button>
+      <div id="res" style="margin-top:14px"></div>
+    </div>
+    <div class="card">
+      <b>Main feelings 💞</b>
+      <div class="hearts" style="margin-top:10px"><div class="h" id="h-lilo"></div><div class="h" id="h-omar"></div></div>
+    </div>
+    <div class="card hid" id="adm">
+      <div class="row"><b>👑 Omar only</b><button id="show">Show what Lilo wrote 🔓</button></div>
+      <div id="vault" class="hid" style="margin-top:10px"></div>
+    </div>
+  </div>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+let me=null,timer=null;
+const USERS={lilo:{pass:"liloomar",name:"Lilo",isAdmin:false},omar:{pass:"omarlilo's",name:"Omar",isAdmin:true}};
+const store={get(k,d){try{const v=JSON.parse(localStorage.getItem(k));return v==null?d:v}catch{return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}};
+// Simple in-browser feelings analysis (keywords). No AI key is ever put inside a web page.
+function analyze(text){
+  const good=/love|miss|sweet|dear|beautiful|babe|happy|thank|7ob|ba7eb|habibi|7abibi|بحب|حبيب|وحشتني|قلبي|عسل|جميل|شكرا|❤|💗|😍|🥰/gi;
+  const bad=/hate|stupid|idiot|angry|annoy|bad|sick of|ugly|اكره|بكره|غبي|زهقت|مضايق|زعلان|وحش|😡|💔/gi;
+  const pct=Math.max(5,Math.min(98,50+15*(text.match(good)||[]).length-20*(text.match(bad)||[]).length));
+  return {pct,emoji:pct>=65?"🥰":pct>=40?"🙂":"💔"};
+}
+const api=async(url,opt={})=>{
+  const b=opt.body||{},msgs=store.get("lilos_msgs",[]),cur=store.get("lilos_me",null);
+  if(url==="/api/login"){const k=String(b.username||"").trim().toLowerCase(),u=USERS[k];
+    if(!u||u.pass!==b.password)throw new Error("Wrong username or password");
+    store.set("lilos_me",k);return{username:k,name:u.name,isAdmin:u.isAdmin}}
+  if(url==="/api/logout"){store.set("lilos_me",null);return{ok:true}}
+  if(!cur)throw new Error("Not logged in");
+  const u=USERS[cur];
+  if(url==="/api/me")return{username:cur,name:u.name,isAdmin:u.isAdmin};
+  if(url==="/api/messages"){const a=analyze(b.text);msgs.push({sender:cur,text:b.text,pct:a.pct,emoji:a.emoji,created_at:Date.now()});store.set("lilos_msgs",msgs);return a}
+  if(url==="/api/feelings"){const o={};for(const w of["lilo","omar"]){const m=msgs.filter(x=>x.sender===w);if(m.length)o[w]={avg:Math.round(m.reduce((a,x)=>a+x.pct,0)/m.length),count:m.length}}return o}
+  if(url==="/api/admin/lilo-messages"){if(!u.isAdmin)throw new Error("Admins only");return msgs.filter(m=>m.sender==="lilo").reverse()}
+};
+function heart(pct,id){
+  const y=(100-pct)*0.92;
+  return `<svg viewBox="0 0 100 92"><defs><clipPath id="c${id}"><rect x="0" y="${y}" width="100" height="100"/></clipPath></defs>
+  <path d="M50 88C12 58 2 38 2 24 2 11 12 3 24 3c11 0 20 6 26 15C56 9 65 3 76 3c12 0 22 8 22 21 0 14-10 34-48 64z" fill="none" stroke="#ff4d88" stroke-width="3" opacity=".5"/>
+  <path d="M50 88C12 58 2 38 2 24 2 11 12 3 24 3c11 0 20 6 26 15C56 9 65 3 76 3c12 0 22 8 22 21 0 14-10 34-48 64z" fill="#ff4d88" clip-path="url(#c${id})"/></svg>`;
+}
+const mood=p=>p>=85?"Deep love 😍":p>=65?"Warm & sweet 🥰":p>=45?"Neutral 🙂":p>=25?"Sad 😔":"Upset / angry 💔";
+
+async function loadFeelings(){
+  try{
+    const f=await api("/api/feelings");
+    for(const who of ["lilo","omar"]){
+      const a=f[who],from=who==="lilo"?"Lilo":"Omar",to=who==="lilo"?"Omar":"Lilo";
+      $("h-"+who).innerHTML=`<div class="lbl">${from} ➜ ${to}</div>`+(a?heart(a.avg,who)+`<div class="pct">${a.avg}%</div><div class="lbl">${mood(a.avg)}</div>`:`<div style="padding:30px 0;color:var(--mut)">Nothing yet 🤍</div>`);
+    }
+  }catch(e){}
+}
+function showApp(u){
+  me=u;$("login").classList.add("hid");$("app").classList.remove("hid");$("sub").textContent="";
+  $("hi").textContent="Welcome, "+u.name+" 💗";$("adm").classList.toggle("hid",!u.isAdmin);
+  loadFeelings();clearInterval(timer);timer=setInterval(loadFeelings,10000);
+}
+function showLogin(){
+  clearInterval(timer);me=null;$("app").classList.add("hid");$("login").classList.remove("hid");
+  $("sub").textContent="Just for the two of us";$("u").value=$("p").value="";$("vault").classList.add("hid");$("res").innerHTML="";
+}
+$("go").onclick=async()=>{
+  try{$("lerr").textContent="";showApp(await api("/api/login",{method:"POST",body:{username:$("u").value,password:$("p").value}}))}
+  catch(e){$("lerr").textContent=e.message}
+};
+$("p").addEventListener("keydown",e=>{if(e.key==="Enter")$("go").click()});
+$("out").onclick=async()=>{await api("/api/logout",{method:"POST"});showLogin()};
+$("send").onclick=async()=>{
+  const text=$("t").value.trim();if(!text)return;
+  $("serr").textContent="";$("send").disabled=true;$("send").textContent="Reading your feelings... 💭";
+  try{
+    const a=await api("/api/messages",{method:"POST",body:{text}});
+    $("t").value="";
+    $("res").innerHTML=`<div class="result">${heart(a.pct,"r")}<div class="pct">${a.pct}%</div><div class="lbl">${a.emoji} ${mood(a.pct)}</div></div>`;
+    loadFeelings();
+  }catch(e){$("serr").textContent=e.message}
+  $("send").disabled=false;$("send").textContent="Send 💌";
+};
+$("show").onclick=async()=>{
+  const v=$("vault");
+  if(!v.classList.contains("hid")){v.classList.add("hid");$("show").textContent="Show what Lilo wrote 🔓";return}
+  v.textContent="...";v.classList.remove("hid");$("show").textContent="Hide 🔒";
+  try{
+    const rows=await api("/api/admin/lilo-messages");
+    v.innerHTML=rows.length?"":`<div class="lbl">Lilo hasn't written anything yet</div>`;
+    rows.forEach(r=>{const d=document.createElement("div");d.className="msg";
+      const t=document.createElement("div");t.style.whiteSpace="pre-wrap";t.textContent=r.text;
+      const s=document.createElement("small");s.textContent=`${r.emoji} ${r.pct}% · ${new Date(r.created_at).toLocaleString()}`;
+      d.append(t,s);v.append(d)});
+  }catch(e){v.textContent=e.message}
+};
+api("/api/me").then(showApp).catch(()=>{});
+</script>
+</body>
+</html>
